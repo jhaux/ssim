@@ -8,23 +8,26 @@ from tqdm import trange
 import numpy as np
 
 from edflow.util import retrieve
+from edflow.data.util import adjust_support
 
 
-def ssim(root, data_in, data_out, config):
+def ssim(root, data_in, data_out, config,
+         im_in_key='image', im_out_key='image', name='ssim'):
 
     data_range = retrieve(config, 'ssim_cb/data_range', default='None')
     if data_range == 'None':
         data_range = None
-    im_in_key = retrieve(config, 'ssim_cb/im_in_key', default='image')
-    im_out_key = retrieve(config, 'ssim_cb/im_out_key', default='image')
 
-    im_shape = np.shape(data_in[0][im_in_key])
+    im_shape = np.shape(retrieve(data_in[0], im_in_key))
     multichannel = len(im_shape) == 3 and im_shape[-1] > 1
 
     ssims = []
-    for i in trange(len(data_in), desc='SSIM'):
-        im_targ = data_in[i][im_in_key]
-        im_gen = data_in[i][im_out_key]
+    for i in trange(len(data_in), desc=name):
+        im_targ = retrieve(data_in[i], im_in_key)
+        im_gen = retrieve(data_out[i], im_out_key)
+
+        im_targ = adjust_support(im_targ, '0->1')
+        im_gen = adjust_support(im_gen, '0->1')
 
         similiarity = sk_ssim(im_targ, im_gen,
                               data_range=data_range,
@@ -37,9 +40,9 @@ def ssim(root, data_in, data_out, config):
     mean_ssim = np.mean(ssims)
     std_ssim = np.std(ssims)
 
-    print('\nSSIM: {:4.3f} +- {:4.3}'.format(mean_ssim, std_ssim))
+    print('\n{}: {:4.3f} +- {:4.3}'.format(name, mean_ssim, std_ssim))
 
-    save_root = os.path.join(root, 'ssim')
+    save_root = os.path.join(root, name)
     os.makedirs(save_root, exist_ok=True)
 
     save_name = os.path.join(save_root, 'vals.npz')
